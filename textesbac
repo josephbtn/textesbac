@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jeux de Révision - Bac de Français</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Merriweather:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        h1, h2, h3, h4 {
+            font-family: 'Merriweather', serif;
+        }
+        .card {
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+        .card-face {
+            backface-visibility: hidden;
+            -webkit-backface-visibility: hidden;
+        }
+        .card-back {
+            transform: rotateY(180deg);
+        }
+        .draggable-item {
+            cursor: move;
+        }
+        .drop-zone {
+            border: 2px dashed #ccc;
+            min-height: 50px;
+        }
+        .drop-zone.over {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.75);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            width: 100%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+        }
+        .modal-close {
+            position: absolute;
+            top: 10px;
+            right: 20px;
+            font-size: 2.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 1;
+            color: #333;
+        }
+        .modal-body pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            font-family: 'Merriweather', serif;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            color: #333;
+            background-color: #f9fafb;
+            padding: 1rem;
+            border-radius: 0.375rem;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <div id="app" class="container mx-auto p-4 md:p-8 max-w-5xl">
+        <header class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900">Révisions pour le Bac de Français</h1>
+            <p class="text-lg text-gray-600 mt-2">Apprenez et testez vos connaissances sur les 14 textes au programme.</p>
+        </header>
+
+        <!-- Menu principal -->
+        <div id="main-menu" class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <button onclick="launchGame('flashcards')" class="bg-white p-6 rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all transform">
+                <h2 class="text-2xl font-bold text-blue-600">Flashcards</h2>
+                <p class="mt-2 text-gray-600">Révisez chaque texte, sa problématique et ses axes.</p>
+            </button>
+            <button onclick="launchGame('quiz')" class="bg-white p-6 rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all transform">
+                <h2 class="text-2xl font-bold text-green-600">Quiz</h2>
+                <p class="mt-2 text-gray-600">Associez la problématique ou l'axe au bon texte.</p>
+            </button>
+            <button onclick="launchGame('order')" class="bg-white p-6 rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all transform">
+                <h2 class="text-2xl font-bold text-purple-600">Mettre en ordre</h2>
+                <p class="mt-2 text-gray-600">Reconstituez le plan de l'analyse pour chaque texte.</p>
+            </button>
+            <button onclick="launchGame('library')" class="bg-white p-6 rounded-lg shadow-md hover:shadow-xl hover:-translate-y-1 transition-all transform">
+                <h2 class="text-2xl font-bold text-yellow-600">Bibliothèque</h2>
+                <p class="mt-2 text-gray-600">Consultez les fiches de révision complètes.</p>
+            </button>
+        </div>
+
+        <!-- Conteneur pour les jeux -->
+        <div id="game-container" class="mt-12 hidden"></div>
+
+    </div>
+
+    <!-- Modale pour l'aperçu du texte -->
+    <div id="text-preview-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <div id="modal-body" class="modal-body">
+                <h3 id="modal-title" class="text-3xl font-bold mb-4 border-b pb-3"></h3>
+                <div id="modal-analysis" class="mb-6 space-y-4">
+                    <div>
+                        <h4 class="text-xl font-bold text-gray-800 mb-2">Problématique</h4>
+                        <p id="modal-problematique" class="pl-4 text-gray-700 italic"></p>
+                    </div>
+                    <div>
+                        <h4 class="text-xl font-bold text-gray-800 mb-2">Axes de lecture</h4>
+                        <ul id="modal-axes" class="list-decimal list-inside pl-4 text-gray-700 space-y-1"></ul>
+                    </div>
+                    <div id="modal-ouverture-container" class="hidden">
+                        <h4 class="text-xl font-bold text-gray-800 mb-2">Ouverture</h4>
+                        <p id="modal-ouverture" class="pl-4 text-gray-700"></p>
+                    </div>
+                </div>
+                <div id="modal-text-container" class="border-t pt-4">
+                    <h4 class="text-xl font-bold text-gray-800 mb-2">Texte</h4>
+                    <pre id="modal-text"></pre>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- BASE DE DONNÉES DES TEXTES ---
+        const textes = [
+            { id: 1, auteur: "Olympe de Gouges", titre: "Préambule (DDFC)", problematique: "En quoi ce texte revendiquant l’égalité des sexes est-il particulièrement convainquant ?", axes: ["Olympe de Gouges porte parole des femmes", "L’égalité comme condition nécessaire au bonheur", "Conclusion du raisonnement d’Olympe de Gouges"], ouverture: null, fullText: `DÉCLARATION DES DROITS DE LA FEMME ET DE LA CITOYENNE\n\nPRÉAMBULE\n\nLes mères, les filles, les sœurs, représentantes de la nation, demandent d'être constituées en Assemblée nationale. Considérant que l'ignorance, l'oubli ou le mépris des droits de la femme sont les seules causes des malheurs publics et de la corruption des gouvernements, [elles] ont résolu d'exposer dans une déclaration solennelle, les droits naturels, inaliénables et sacrés de la femme, afin que cette déclaration constamment présente à tous les membres du corps social, leur rappelle sans cesse leurs droits et leurs devoirs, afin que les actes du pouvoir des femmes, et ceux du pouvoir des hommes pouvant être à chaque instant comparés avec le but de toute institution politique, en soient plus respectés, afin que les réclamations des citoyennes, fondées désormais sur des principes simples et incontestables, tournent toujours au maintien de la Constitution, des bonnes mœurs, et au bonheur de tous.\n\nEn conséquence, le sexe supérieur en beauté comme en courage dans les souffrances maternelles, reconnaît et déclare, en présence et sous les auspices de l'Être suprême, les Droits suivants de la femme et de la citoyenne.` },
+            { id: 2, auteur: "Olympe de Gouges", titre: "Postambule (DDFC)", problematique: "Comment Olympe de Gouges cherche-t-elle à convaincre les femmes de passer à l’action pour faire valoir leurs droits ?", axes: ["Une description de la France post révolutionnaire", "Olympe de Gouges cherche à susciter l’indignation des femmes", "Olympe de Gouge encourage les femmes à agir"], ouverture: "Qu’est ce que les Lumières ? Kant", fullText: `POSTAMBULE\n\nFemme, réveille-toi; le tocsin de la raison se fait entendre dans tout l'univers; reconnais tes droits. Le puissant empire de la nature n'est plus environné de préjugés, de fanatisme, de superstition et de mensonges. Le flambeau de la vérité a dissipé tous les nuages de la sottise et de l'usurpation. L'homme esclave a multiplié ses forces, a eu besoin de recourir aux tiennes pour briser ses fers. Devenu libre, il est devenu injuste envers sa compagne. Ô femmes ! femmes, quand cesserez-vous d'être aveugles? Quels sont les avantages que vous avez recueillis dans la Révolution? Un mépris plus marqué, un dédain plus signalé. Dans les siècles de corruption vous n'avez régné que sur la faiblesse des hommes. Votre empire est détruit; que vous reste-t-il donc? la conviction des injustices de l'homme. La réclamation de votre patrimoine, fondée sur les sages décrets de la nature; qu'auriez-vous à redouter pour une si belle entreprise? le bon mot du législateur des noces de Cana? Craignez-vous que nos législateurs français, correcteurs de cette morale, longtemps accrochée aux branches de la politique, mais qui n'est plus de saison, ne vous répètent: femmes, qu'y a-t-il de commun entre vous et nous? Tout, auriez-vous à répondre. S'ils s'obstinaient, dans leur faiblesse, à mettre cette inconséquence en contradiction avec leurs principes; opposez courageusement la force de la raison aux vaines prétentions de supériorité; réunissez-vous sous les étendards de la philosophie; déployez toute l'énergie de votre caractère, et vous verrez bientôt ces orgueilleux, nos serviles adorateurs rampants à vos pieds, mais fiers de partager avec vous les trésors de l'Etre suprême. Quelles que soient les barrières que l'on vous oppose, il est en votre pouvoir de les affranchir; vous n'avez qu'à le vouloir.` },
+            { id: 3, auteur: "Voltaire", titre: "Le nègre de Surinam", problematique: "Comment Voltaire dénonce t-il l’esclavage ?", axes: ["La description du nègre", "Le dialogue entre Candide et le nègre", "La leçon à tirer"], ouverture: "L’esprit des lois, Montesquieu", fullText: `En approchant de la ville, ils rencontrèrent un nègre étendu par terre, n'ayant plus que la moitié de son habit, c'est-à-dire d'un caleçon de toile bleue; il manquait à ce pauvre homme la jambe gauche et la main droite. « Eh, mon Dieu! lui dit Candide en hollandais, que fais-tu là, mon ami, dans l'état horrible où je te vois? — J'attends mon maître, M. Vanderdendur, le fameux négociant, répondit le nègre. — Est-ce M. Vanderdendur, dit Candide, qui t'a traité ainsi? — Oui, monsieur, dit le nègre, c'est l'usage. On nous donne un caleçon de toile pour tout vêtement deux fois l'année. Quand nous travaillons aux sucreries, et que la meule nous attrape le doigt, on nous coupe la main; quand nous voulons nous enfuir, on nous coupe la jambe: je me suis trouvé dans les deux cas. C'est à ce prix que vous mangez du sucre en Europe. Cependant, lorsque ma mère me vendit dix écus patagons sur la côte de Guinée, elle me disait: “Mon cher enfant, bénis nos fétiches, adore-les toujours, ils te feront vivre heureux; tu as l'honneur d'être esclave de nos seigneurs les blancs, et tu fais par là la fortune de ton père et de ta mère.” Hélas! je ne sais pas si j'ai fait leur fortune, mais ils n'ont pas fait la mienne. Les chiens, les singes et les perroquets sont mille fois moins malheureux que nous. Les fétiches hollandais qui m'ont converti me disent tous les dimanches que nous sommes tous enfants d'Adam, blancs et noirs. Je ne suis pas généalogiste; mais si ces prêcheurs disent vrai, nous sommes tous cousins issus de germain. Or vous m'avouerez qu'on ne peut pas en user avec ses parents d'une manière plus horrible.\n\n— Ô Pangloss! s'écria Candide, tu n'avais pas deviné cette abomination; c'en est fait, il faudra qu'à la fin je renonce à ton optimisme. — Qu'est-ce qu'optimisme? disait Cacambo. — Hélas! dit Candide, c'est la rage de soutenir que tout est bien quand on est mal. Et il versait des larmes en regardant son nègre, et en pleurant, il entra dans le Surinam.` },
+            { id: 4, auteur: "Musset", titre: "Acte 1, scène 2", problematique: "En quoi cette scène d’exposition révèle t-elle des informations essentielles sur le caractère des personnages, l’intrigue qui va se nouer et le genre de la pièce de théâtre ?", axes: ["Des retrouvailles décevantes", "Le refus de Camille", "Perdican et Camille : deux personnages diamétralement opposés"], ouverture: null, fullText: `LE BARON\nBonjour, mes enfants; bonjour, ma chère Camille, mon cher Perdican! embrassez-moi, et embrassez-vous.\n\nPERDICAN\nBonjour, mon père, ma sœur bien-aimée! Quel bonheur ! que je suis heureux!\n\nCAMILLE\nMon père et mon cousin, je vous salue.\n\nPERDICAN\nComme te voilà grande, Camille! et belle comme le jour.\n\nLE BARON\nAllons, Camille, embrasse ton cousin.\n\nCAMILLE\nExcusez-moi.\n\nPERDICAN\nSi ma cousine recule quand je lui tends la main, je vous dirai à mon tour: Excusez-moi; l'amour peut voler un baiser, mais non pas l'amitié.\n\nCAMILLE\nL'amitié ni l'amour ne doivent recevoir que ce qu'ils peuvent rendre.` },
+            { id: 5, auteur: "Musset", titre: "Acte 2, scène 5", problematique: "En quoi Perdican défend-t-il ici de manière éloquente sa vision de l’amour ?", axes: ["Dénonciation des mensonges de la religion", "L’amour terrestre"], ouverture: null, fullText: `PERDICAN\nAdieu, Camille, retourne à ton couvent, et lorsqu'on te fera de ces récits hideux qui t'ont empoisonnée, réponds ce que je vais te dire: Tous les hommes sont menteurs, inconstants, faux, bavards, hypocrites, orgueilleux et lâches, méprisables et sensuels; toutes les femmes sont perfides, artificieuses, vaniteuses, curieuses et dépravées; le monde n'est qu'un égout sans fond où les phoques les plus informes rampent et se tordent sur des montagnes de fange; mais il y a au monde une chose sainte et sublime, c'est l'union de deux de ces êtres si imparfaits et si affreux. On est souvent trompé en amour, souvent blessé et souvent malheureux; mais on aime, et quand on est sur le bord de sa tombe, on se retourne pour regarder en arrière, et on se dit: J'ai souffert souvent, je me suis trompé quelquefois; mais j'ai aimé. C'est moi qui ai vécu, et non pas un être factice créé par mon orgueil et mon ennui.` },
+            { id: 6, auteur: "Musset", titre: "Acte 3, scène 8", problematique: "En quoi cette scène constitue-t-elle une déclaration d’amour tragique qui repose sur deux coups de théâtre ?", axes: ["Une déclaration d’amour commune : premier coup de théâtre", "Un deuxième coup de théâtre tragique"], ouverture: null, fullText: `PERDICAN\nInsensés que nous sommes ! nous nous aimons. Quel songe avons-nous fait, Camille? [...] Ô insensés! nous nous aimons.\n\nCAMILLE, il la prend dans ses bras.\nOui, nous nous aimons, Perdican; laisse-moi le sentir sur ton cœur; ce Dieu qui nous regarde ne s'en offensera pas; il veut bien que je t'aime; il y a quinze ans qu'il le sait.\n\nPERDICAN\nChère créature, tu es à moi!\n(Il l'embrasse; on entend un grand cri derrière l'autel.)\n\nCAMILLE\nC'est la voix de ma sœur de lait.\n\nPERDICAN\nComment est-elle ici? [...] Je ne sais ce que j'éprouve; il me semble que mes mains sont couvertes de sang.\n\nCAMILLE\nLa pauvre enfant nous a sans doute épiés; elle s'est encore évanouie; viens, portons-lui secours; hélas! tout cela est cruel.\n\nPERDICAN\nNon, en vérité, je n'entrerai pas; je sens un froid mortel qui me paralyse. Vas-y, Camille, et tâche de la ramener.\n(Camille sort.)\n\nPERDICAN\nJe vous en supplie, mon Dieu ! ne faites pas de moi un meurtrier ! [...] Eh bien Camille, qu'y a-t-il?\n\nCAMILLE, rentre.\nElle est morte. Adieu, Perdican.` },
+            { id: 7, auteur: "Marivaux", titre: "Les fausses confidences", problematique: "En quoi cette scène de manipulation est-elle à la fois comique, pathétique et galante ?", axes: ["Ecriture de la lettre", "Les tentatives de Dorante pour dissuader Araminte d’épouser le comte", "Échec d’Araminte"], ouverture: "On ne badine pas avec l’amour, acte 3 scène 3", fullText: `ARAMINTE, poursuit.\nÊtes-vous prêt à écrire ?\n\nDORANTE.\nMadame, je ne trouve point de papier.\n\nARAMINTE, allant elle-même.\nVous n'en trouvez point ? En voilà devant vous.\n\nDORANTE.\nIl est vrai.\n\nARAMINTE.\nÉcrivez. « Hâtez-vous de venir, Monsieur; votre mariage est sûr... » Avez-vous écrit ?\n\nDORANTE.\nComment, Madame ?\n\nARAMINTE.\nVous ne m'écoutez donc pas ? « Votre mariage est sûr; Madame veut que je vous l'écrive, et vous attend pour vous le dire. » (À part) Il souffre, mais il ne dit mot. Est-ce qu'il ne parlera pas ? « N'attribuez point cette résolution à la crainte que Madame pourrait avoir des suites d'un procès douteux. »\n\nDORANTE.\nJe vous ai assuré que vous le gagneriez, Madame. Douteux ! il ne l'est point.\n\nARAMINTE.\nN'importe, achevez. « Non, Monsieur, je suis chargé de sa part de vous assurer que la seule justice qu'elle rend à votre mérite la détermine. »\n\nDORANTE, à part.\nCiel! je suis perdu. (Haut.) Mais, Madame, vous n'aviez aucune inclination pour lui.\n\nARAMINTE.\nAchevez, vous dis-je... « Qu'elle rend à votre mérite la détermine... » Je crois que la main vous tremble ! Vous paraissez changé. Qu'est-ce que cela signifie ? Vous trouvez-vous mal?\n\nDORANTE.\nJe ne me trouve pas bien, Madame.` },
+            { id: 8, auteur: "Prévost", titre: "Scène de rencontre", problematique: "En quoi cette scène de rencontre est-elle placée sous le signe de la fatalité ?", axes: ["Le cadre de la rencontre", "Le coup de foudre", "Première conversation"], ouverture: "L’éducation sentimentale, Flaubert", fullText: `J'avais marqué le temps de mon départ d'Amiens. Hélas! que ne le marquais-je un jour plus tôt! j'aurais porté chez mon père toute mon innocence. La veille même de celui que je devais quitter cette ville, étant à me promener avec mon ami, qui s'appelait Tiberge, nous vîmes arriver le coche d'Arras, et nous le suivîmes jusqu'à l'hôtellerie où ces voitures descendent. Nous n'avions pas d'autre motif que la curiosité. Il en sortit quelques femmes, qui se retirèrent aussitôt. Mais il en resta une, fort jeune, qui s'arrêta seule dans la cour, pendant qu'un homme d'un âge avancé, qui paraissait lui servir de conducteur, s'empressait pour faire tirer son équipage des paniers. Elle me parut si charmante que moi, qui n'avais jamais pensé à la différence des sexes, ni regardé une fille avec un peu d'attention, moi, dis-je, dont tout le monde admirait la sagesse et la retenue, je me trouvai enflammé tout d'un coup jusqu'au transport. J'avais le défaut d'être excessivement timide et facile à déconcerter; mais loin d'être arrêté alors par cette faiblesse, je m'avançai vers la maîtresse de mon cœur. Quoiqu'elle fût encore moins âgée que moi, elle reçut mes politesses sans paraître embarrassée. Je lui demandai ce qui l'amenait à Amiens et si elle y avait quelques personnes de connaissance. Elle me répondit ingénument qu'elle y était envoyée par ses parents pour être religieuse. L'amour me rendait déjà si éclairé, depuis un moment qu'il était dans mon cœur, que je regardai ce dessein comme un coup mortel pour mes désirs. Je lui parlai d'une manière qui lui fit comprendre mes sentiments, car elle était bien plus expérimentée que moi. C'était malgré elle qu'on l'envoyait au couvent, pour arrêter sans doute son penchant au plaisir, qui s'était déjà déclaré et qui a causé, dans la suite, tous ses malheurs et les miens.` },
+            { id: 9, auteur: "Prévost", titre: "Rupture familiale", problematique: "En quoi cette rupture familiale renforce-t-elle la marginalité de Des Grieux ?", axes: ["Des Grieux supplie son père de libérer Manon", "Le père de Des Grieux insensible aux supplications", "Rupture définitive"], ouverture: null, fullText: `Je me jetai à ses genoux. « Ah! s'il vous en reste encore, lui dis-je en les embrassant, ne vous endurcissez donc pas contre mes pleurs. Songez que je suis votre fils... Hélas! souvenez-vous de ma mère. Vous l'aimiez si tendrement! Auriez-vous souffert qu'on l'eût arrachée de vos bras? Vous l'auriez défendue jusqu'à la mort. Les autres n'ont-ils pas un coeur comme vous? Peut-on être barbare, après avoir une fois éprouvé ce que c'est que la tendresse et la douleur? »\n\n« Ne me parle pas davantage de ta mère, reprit-il d'une voix irritée; ce souvenir échauffe mon indignation: Tes désordres la feraient mourir de douleur, si elle eût assez vécu pour les voir. Finissons cet entretien, ajouta-t-il; il m'importune, et ne me fera point changer de résolution. Je retourne au logis; je t'ordonne de me suivre. » Le ton sec et dur avec lequel il m'intima cet ordre me fit trop comprendre que son cœur était inflexible. [...] « Tu refuses donc de me suivre? » s'écria-t-il avec une vive colère. « Va, cours à ta perte. Adieu, fils ingrat et rebelle. » « Adieu, lui dis-je dans mon transport, adieu, père barbare et dénaturé. »` },
+            { id: 10, auteur: "Prévost", titre: "Mort de Manon", problematique: "En quoi ce passage tragique et pathétique propose-t-il une image idéalisée de Manon ?", axes: ["La mort sublimée de Manon", "Le désespoir et la solitude de Des Grieux", "De la paralysie à l’action", "Des Grieux creuse la tombe de Manon", "Hommage à Manon"], ouverture: "Roméo et Juliette, Shakespeare", fullText: `N'exigez point de moi que je vous décrive mes sentiments, ni que je vous rapporte ses dernières expressions. Je la perdis; je reçus d'elle des marques d'amour, au moment même qu'elle expirait. C'est tout ce que j'ai la force de vous apprendre de ce fatal et déplorable événement.\n\nMon âme ne suivit pas la sienne. Le Ciel ne me trouva point, sans doute, assez rigoureusement puni. Il a voulu que j'aie traîné, depuis, une vie languissante et misérable. Je renonce volontairement à la mener jamais plus heureuse.\n\nJe demeurai plus de vingt-quatre heures la bouche attachée sur le visage et sur les mains de ma chère Manon. Mon dessein était d'y mourir; mais je fis réflexion au commencement du second jour, que son corps serait exposé, après mon trépas, à devenir la pâture des bêtes sauvages. Je formai la résolution de l'enterrer et d'attendre la mort sur sa fosse. [...] J'ouvris une large fosse. J'y plaçai l'idole de mon cœur, après avoir pris soin de l'envelopper de tous mes habits pour empêcher le sable de la toucher. [...] j'ensevelis pour toujours dans le sein de la terre ce qu'elle avait porté de plus parfait et de plus aimable. Je me couchai ensuite sur la fosse, le visage tourné vers le sable, et fermant les yeux avec le dessein de ne les ouvrir jamais, j'invoquai le secours du Ciel et j'attendis la mort avec impatience.` },
+            { id: 11, auteur: "Rimbaud", titre: "Vénus Anadyomène", problematique: "En quoi ce sonnet est-il une émancipation des codes traditionnels de la beauté et du genre littéraire du blason ?", axes: ["Description d’une tête et parodie d’une naissance", "Description du dos de Vénus", "Description sensorielle du dos très étrange", "Une chute horrible et surprenante"], ouverture: "“Une charogne” Baudelaire", fullText: `Comme d'un cercueil vert en fer blanc, une tête\nDe femme à cheveux bruns fortement pommadés\nD'une vieille baignoire émerge, lente et bête,\nAvec des déficits assez mal ravaudés;\n\nPuis le col gras et gris, les larges omoplates\nQui saillent; le dos court qui rentre et qui ressort;\nPuis les rondeurs des reins semblent prendre l'essor;\nLa graisse sous la peau paraît en feuilles plates;\n\nL'échine est un peu rouge, et le tout sent un goût\nHorrible étrangement; on remarque surtout\nDes singularités qu'il faut voir à la loupe.....\n\nLes reins portent deux mots gravés: Clara Venus;\nEt tout ce corps remue et tend sa large croupe\nBelle hideusement d'un ulcère à l'anus.` },
+            { id: 12, auteur: "Rimbaud", titre: "Rages de Césars", problematique: "En quoi ce sonnet fait-il la satire de Napoléon 3 ?", axes: ["Portrait d’un tyran et d’un débauché", "Un homme désemparé et moribond"], ouverture: "“L’éclatante victoire de Sarrebruck”", fullText: `L'homme pâle, le long des pelouses fleuries,\nChemine, en habit noir, et le cigare aux dents :\nL'Homme pâle repense aux fleurs des Tuileries\n- Et parfois son oeil terne a des regards ardents...\n\nCar l'Empereur est soûl de ses vingt ans d'orgie !\nIl s'était dit : « Je vais souffler la liberté\nBien délicatement, ainsi qu'une bougie ! »\nLa liberté revit ! Il se sent éreinté !\n\nIl est pris. - Oh! quel nom sur ses lèvres muettes\nTressaille? Quel regret implacable le mord?\nOn ne le saura pas. L'Empereur a l'œil mort.\n\nIl repense peut-être au Compère en lunettes...\nEt regarde filer de son cigare en feu,\nComme aux soirs de Saint-Cloud, un fin nuage bleu.` },
+            { id: 13, auteur: "Rimbaud", titre: "Ma Bohème", problematique: "Quel autoportrait et quelle définition de la poésie Rimbaud propose-t-il dans ce sonnet ?", axes: ["Révolte et enthousiasme de Rimbaud", "L’ardeur de la création poétique"], ouverture: null, fullText: `Je m'en allais, les poings dans mes poches crevées;\nMon paletot aussi devenait idéal;\nJ'allais sous le ciel, Muse! et j'étais ton féal;\nOh! là là ! que d'amours splendides j'ai rêvées !\n\nMon unique culotte avait un large trou.\nPetit-Poucet rêveur, j'égrenais dans ma course\nDes rimes. Mon auberge était à la Grande-Ourse.\nMes étoiles au ciel avaient un doux frou-frou\n\nEt je les écoutais, assis au bord des routes,\nCes bons soirs de septembre où je sentais des gouttes\nDe rosée à mon front, comme un vin de vigueur;\n\nOù, rimant au milieu des ombres fantastiques,\nComme des lyres, je tirais les élastiques\nDe mes souliers blessés, un pied près de mon coeur !` },
+            { id: 14, auteur: "Ponge", titre: "Le Pain", problematique: "Comment Francis Ponge renouvelle-t-il notre regard sur un objet aussi ordinaire que le pain ?", axes: ["La description de la croûte", "La fabrication du pain", "La fabrication de la mie"], ouverture: "“Le Buffet”, Rimbaud", fullText: `La surface du pain est merveilleuse d'abord à cause de cette impression quasi panoramique qu'elle donne: comme si l'on avait à sa disposition sous la main les Alpes, le Taurus ou la cordillère des Andes.\n\nAinsi donc une masse amorphe en train d'éructer fut glissée pour nous dans le four stellaire, où durcissant elle s'est façonnée en vallées, crêtes, ondulations, crevasses... Et tous ces plans dès lors si nettement articulés, ces dalles minces où la lumière avec application couche ses feux, sans un regard pour la mollesse ignoble sous-jacente.\n\nCe lâche et froid sous-sol que l'on nomme la mie a son tissu pareil à celui des éponges: feuilles ou fleurs y sont comme des sœurs siamoises soudées par tous les coudes à la fois. Lorsque le pain rassit ces fleurs fanent et se rétrécissent: elles se détachent alors les unes des autres, et la masse en devient friable...\n\nMais brisons-la: car le pain doit être dans notre bouche moins objet de respect que de consommation.` },
+        ];
+        
+        // --- VARIABLES GLOBALES & UTILITAIRES ---
+        const mainMenu = document.getElementById('main-menu');
+        const gameContainer = document.getElementById('game-container');
+        const modal = document.getElementById('text-preview-modal');
+        function goBackToMenu() { gameContainer.innerHTML = ''; gameContainer.classList.add('hidden'); mainMenu.classList.remove('hidden'); }
+        function createBackButton() { return `<button onclick="goBackToMenu()" class="mt-8 bg-gray-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-gray-600 transition">&larr; Retour au menu</button>`; }
+        function closeModal() { modal.classList.add('hidden'); }
+
+        // --- MODALE DE FICHE COMPLÈTE ---
+        function showModalById(id, showAnalysis = true) {
+            const texte = textes.find(t => t.id === id);
+            if (texte) {
+                document.getElementById('modal-title').innerText = `${texte.auteur} - ${texte.titre}`;
+                
+                const analysisContainer = document.getElementById('modal-analysis');
+                const textContainer = document.getElementById('modal-text-container');
+                
+                if (showAnalysis) {
+                    document.getElementById('modal-problematique').innerText = texte.problematique;
+                    const axesList = document.getElementById('modal-axes');
+                    axesList.innerHTML = '';
+                    texte.axes.forEach(axe => {
+                        const li = document.createElement('li');
+                        li.innerText = axe;
+                        axesList.appendChild(li);
+                    });
+                    const ouvertureContainer = document.getElementById('modal-ouverture-container');
+                    if (texte.ouverture) {
+                        document.getElementById('modal-ouverture').innerText = texte.ouverture;
+                        ouvertureContainer.classList.remove('hidden');
+                    } else {
+                        ouvertureContainer.classList.add('hidden');
+                    }
+                    analysisContainer.classList.remove('hidden');
+                    textContainer.classList.add('border-t', 'pt-4');
+                } else {
+                    analysisContainer.classList.add('hidden');
+                    textContainer.classList.remove('border-t', 'pt-4');
+                }
+                
+                document.getElementById('modal-text').innerText = texte.fullText;
+                modal.classList.remove('hidden');
+            }
+        }
+
+        // --- LANCEUR DE JEU ---
+        function launchGame(gameType) {
+            mainMenu.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            gameContainer.innerHTML = '';
+            const games = {
+                flashcards: initFlashcards,
+                quiz: initQuiz,
+                order: initOrderGame,
+                library: initLibrary
+            };
+            if (games[gameType]) games[gameType]();
+        }
+
+        // --- JEU 1 : FLASHCARDS ---
+        function initFlashcards() {
+            let shuffledTextes = shuffleArray([...textes]);
+            let currentFlashcardIndex = 0;
+            
+            function renderFlashcard() {
+                const texte = shuffledTextes[currentFlashcardIndex];
+                gameContainer.innerHTML = `
+                    <h2 class="text-3xl font-bold text-center mb-6 text-blue-600">Flashcards</h2>
+                    <div class="perspective-1000">
+                        <div id="flashcard" class="card relative w-full min-h-[24rem]">
+                            <!-- Face avant -->
+                            <div class="card-face absolute w-full h-full p-6 bg-white rounded-lg shadow-xl flex flex-col justify-center items-center text-center" onclick="this.parentElement.classList.toggle('flipped')">
+                                <div class="flex-grow flex flex-col justify-center">
+                                    <p class="text-lg text-gray-500">${texte.auteur}</p>
+                                    <h3 class="text-2xl md:text-3xl font-bold mt-2">${texte.titre}</h3>
+                                </div>
+                                <div class="mt-6 flex flex-col items-center gap-2">
+                                    <button onclick="event.stopPropagation(); showModalById(${texte.id}, false)" class="bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition">
+                                        Lire l'extrait
+                                    </button>
+                                    <p class="text-sm text-blue-500 mt-2">(Cliquez sur la carte pour voir la réponse)</p>
+                                </div>
+                            </div>
+                            <!-- Face arrière -->
+                            <div class="card-face card-back absolute w-full h-full p-6 bg-blue-50 rounded-lg shadow-xl overflow-y-auto flex flex-col justify-between">
+                                <div>
+                                    <h4 class="font-bold text-lg text-blue-800">Problématique :</h4>
+                                    <p class="mb-4 text-blue-900">${texte.problematique}</p>
+                                    <h4 class="font-bold text-lg text-blue-800">Axes de lecture :</h4>
+                                    <ul class="list-decimal list-inside mb-4 text-blue-900">
+                                        ${texte.axes.map(axe => `<li>${axe}</li>`).join('')}
+                                    </ul>
+                                    ${texte.ouverture ? `<h4 class="font-bold text-lg text-blue-800">Ouverture :</h4><p class="text-blue-900">${texte.ouverture}</p>` : ''}
+                                </div>
+                                <button onclick="showModalById(${texte.id}, true)" class="mt-4 w-full bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-600 transition">
+                                    Voir la fiche complète
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex justify-between items-center mt-6">
+                        <button id="prev-card" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition disabled:opacity-50">&larr; Précédent</button>
+                        <p class="text-gray-600 font-medium">${currentFlashcardIndex + 1} / ${shuffledTextes.length}</p>
+                        <button id="next-card" class="bg-blue-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-blue-600 transition">Suivant &rarr;</button>
+                    </div>
+                    ${createBackButton()}`;
+                
+                document.getElementById('prev-card').addEventListener('click', (e) => { e.stopPropagation(); navigateFlashcard(-1); });
+                document.getElementById('next-card').addEventListener('click', (e) => { e.stopPropagation(); navigateFlashcard(1); });
+                updateFlashcardNavButtons();
+            }
+
+            function navigateFlashcard(direction) {
+                currentFlashcardIndex = (currentFlashcardIndex + direction + shuffledTextes.length) % shuffledTextes.length;
+                renderFlashcard();
+            }
+
+            function updateFlashcardNavButtons() {
+                document.getElementById('prev-card').disabled = currentFlashcardIndex === 0;
+                document.getElementById('next-card').disabled = currentFlashcardIndex === shuffledTextes.length - 1;
+            }
+
+            renderFlashcard();
+        }
+
+        // --- JEU 2 : QUIZ ---
+        function initQuiz() {
+            let shuffledTextes = shuffleArray([...textes]);
+            let currentQuizIndex = 0;
+
+            function generateQuizQuestion() {
+                if (currentQuizIndex >= shuffledTextes.length) {
+                    // Optionnel: afficher un écran de fin de quiz
+                    gameContainer.innerHTML = `<h2 class="text-2xl font-bold text-center">Quiz terminé !</h2>${createBackButton()}`;
+                    return;
+                }
+                const correctTexte = shuffledTextes[currentQuizIndex];
+                
+                let questionText;
+                const isProblematique = Math.random() > 0.5;
+                if (isProblematique) {
+                    questionText = correctTexte.problematique;
+                } else {
+                    questionText = correctTexte.axes[Math.floor(Math.random() * correctTexte.axes.length)];
+                }
+                
+                let incorrectOptions = [];
+                while(incorrectOptions.length < 3) {
+                    const randomTexte = textes[Math.floor(Math.random() * textes.length)];
+                    if (randomTexte.id !== correctTexte.id && !incorrectOptions.some(opt => opt.id === randomTexte.id)) {
+                        incorrectOptions.push(randomTexte);
+                    }
+                }
+
+                const options = shuffleArray([correctTexte, ...incorrectOptions]);
+
+                gameContainer.innerHTML = `
+                    <h2 class="text-3xl font-bold text-center mb-6 text-green-600">Quiz (${currentQuizIndex + 1}/${shuffledTextes.length})</h2>
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <p class="text-lg text-center font-semibold mb-1">À quel texte correspond cette idée ?</p>
+                        <p class="text-xl text-center text-gray-700 mb-6">"${questionText}"</p>
+                        <div id="quiz-options" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            ${options.map(opt => `
+                                <button data-id="${opt.id}" class="w-full text-left p-4 bg-gray-100 rounded-lg hover:bg-green-100 transition">
+                                    <span class="font-bold">${opt.auteur}</span><br>
+                                    <span class="text-sm">${opt.titre}</span>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                    <div id="quiz-feedback" class="mt-4 text-center"></div>
+                    ${createBackButton()}`;
+                
+                document.getElementById('quiz-options').addEventListener('click', (e) => {
+                    const button = e.target.closest('button');
+                    if (button) checkQuizAnswer(parseInt(button.dataset.id), correctTexte.id);
+                });
+            }
+            
+            function checkQuizAnswer(selectedId, correctId) {
+                const feedbackContainer = document.getElementById('quiz-feedback');
+                const buttons = document.querySelectorAll('#quiz-options button');
+                const correctTexte = textes.find(t => t.id === correctId);
+
+                buttons.forEach(btn => {
+                    btn.disabled = true;
+                    const btnId = parseInt(btn.dataset.id);
+                    if(btnId === correctId){
+                        btn.classList.add('!bg-green-500', 'text-white');
+                    } else if(btnId === selectedId) {
+                        btn.classList.add('!bg-red-500', 'text-white');
+                    }
+                });
+
+                let feedbackHTML = '';
+                if (selectedId === correctId) {
+                    feedbackHTML = `<p class="text-center text-green-600 font-bold text-lg p-4 bg-green-100 rounded-lg">Bonne réponse !</p>`;
+                } else {
+                    feedbackHTML = `<p class="text-center text-red-600 font-bold text-lg p-4 bg-red-100 rounded-lg">Incorrect. La bonne réponse était : ${correctTexte.auteur} - ${correctTexte.titre}</p>`;
+                }
+                
+                feedbackHTML += `<button onclick="showModalById(${correctId}, true)" class="mt-4 bg-indigo-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-indigo-600 transition">Voir la fiche</button>`;
+                feedbackContainer.innerHTML = feedbackHTML;
+                
+                currentQuizIndex++;
+                setTimeout(generateQuizQuestion, 3000);
+            }
+
+            generateQuizQuestion();
+        }
+
+        // --- JEU 3 : METTRE EN ORDRE ---
+        function initOrderGame() {
+            let currentOrderGameText;
+            let draggedElement = null;
+
+            function renderOrderGame() {
+                currentOrderGameText = textes.filter(t => t.axes.length > 1)[Math.floor(Math.random() * textes.filter(t => t.axes.length > 1).length)];
+                const shuffledAxes = shuffleArray([...currentOrderGameText.axes]);
+                
+                gameContainer.innerHTML = `
+                    <h2 class="text-3xl font-bold text-center mb-6 text-purple-600">Mettre en ordre</h2>
+                    <div class="bg-white p-6 rounded-lg shadow-lg">
+                        <p class="text-lg font-semibold">${currentOrderGameText.auteur} - ${currentOrderGameText.titre}</p>
+                        <p class="text-gray-600 mb-4">${currentOrderGameText.problematique}</p>
+                        <p class="mb-4 font-semibold">Faites glisser les axes dans le bon ordre :</p>
+                        
+                        <div id="source-items" class="mb-6 space-y-3 p-4 bg-gray-50 rounded-lg min-h-[50px]">
+                            ${shuffledAxes.map((axe) => `<div class="draggable-item p-3 bg-gray-200 rounded-lg shadow-sm" draggable="true" data-text="${axe}">${axe}</div>`).join('')}
+                        </div>
+
+                        <div id="drop-zones" class="space-y-3">
+                            ${currentOrderGameText.axes.map((_, index) => `<div class="drop-zone p-3 rounded-lg flex items-center justify-center" data-order="${index}"><span class="text-gray-400">Axe ${index + 1}</span></div>`).join('')}
+                        </div>
+
+                        <button onclick="checkOrder()" class="mt-6 w-full bg-purple-500 text-white font-semibold py-2 px-4 rounded-lg hover:bg-purple-600 transition">Vérifier</button>
+                        <div id="order-feedback" class="mt-4"></div>
+                    </div>
+                    <button onclick="renderOrderGame()" class="mt-4 bg-gray-200 text-gray-800 font-semibold py-2 px-4 rounded-lg hover:bg-gray-300 transition">Texte Suivant &rarr;</button>
+                    ${createBackButton()}`;
+                addDragDropListeners();
+            }
+
+            function addDragDropListeners() {
+                document.querySelectorAll('.draggable-item').forEach(item => {
+                    item.addEventListener('dragstart', handleDragStart);
+                    item.addEventListener('dragend', handleDragEnd);
+                });
+                document.querySelectorAll('.drop-zone').forEach(zone => {
+                    zone.addEventListener('dragover', handleDragOver);
+                    zone.addEventListener('dragleave', handleDragLeave);
+                    zone.addEventListener('drop', handleDrop);
+                });
+            }
+
+            function handleDragStart(e) {
+                draggedElement = e.target;
+                e.dataTransfer.setData('text/plain', e.target.dataset.text);
+                setTimeout(() => e.target.classList.add('opacity-50'), 0);
+            }
+
+            function handleDragEnd(e) {
+                e.target.classList.remove('opacity-50');
+            }
+
+            function handleDragOver(e) {
+                e.preventDefault();
+                const dropZone = e.target.closest('.drop-zone');
+                if(dropZone) dropZone.classList.add('over');
+            }
+
+            function handleDragLeave(e) {
+                const dropZone = e.target.closest('.drop-zone');
+                if(dropZone) dropZone.classList.remove('over');
+            }
+
+            function handleDrop(e) {
+                e.preventDefault();
+                const dropZone = e.target.closest('.drop-zone');
+                if (!dropZone || !draggedElement) return;
+
+                dropZone.classList.remove('over');
+                
+                const existingItem = dropZone.querySelector('.draggable-item');
+                if (existingItem) {
+                    document.getElementById('source-items').appendChild(existingItem);
+                }
+
+                dropZone.innerHTML = '';
+                dropZone.appendChild(draggedElement);
+            }
+
+            function checkOrder() {
+                const dropZones = document.querySelectorAll('.drop-zone');
+                let isCorrect = true;
+                dropZones.forEach((zone, index) => {
+                    const item = zone.querySelector('.draggable-item');
+                    zone.classList.remove('!border-green-500', '!border-red-500', '!bg-green-100', '!bg-red-100');
+                    if (!item || item.dataset.text !== currentOrderGameText.axes[index]) {
+                        isCorrect = false;
+                        zone.classList.add('!border-red-500', '!bg-red-100');
+                    } else {
+                        zone.classList.add('!border-green-500', '!bg-green-100');
+                    }
+                });
+
+                const feedback = document.getElementById('order-feedback');
+                if(isCorrect) {
+                    feedback.innerHTML = `<p class="text-center text-green-600 font-bold text-lg p-4 bg-green-100 rounded-lg">Parfait ! L'ordre est correct.</p>`;
+                } else {
+                    feedback.innerHTML = `<p class="text-center text-red-600 font-bold text-lg p-4 bg-red-100 rounded-lg">Il y a des erreurs dans l'ordre.</p>`;
+                }
+            }
+            
+            renderOrderGame();
+        }
+
+        // --- BIBLIOTHÈQUE ---
+        function initLibrary() {
+             gameContainer.innerHTML = `
+                <h2 class="text-3xl font-bold text-center mb-6 text-yellow-600">Bibliothèque</h2>
+                <div class="bg-white p-6 rounded-lg shadow-lg">
+                    <p class="text-lg text-center mb-6">Cliquez sur un texte pour afficher sa fiche de révision complète.</p>
+                    <div class="space-y-3">
+                        ${textes.map(texte => `
+                            <button onclick="showModalById(${texte.id}, true)" class="w-full text-left p-4 bg-gray-50 rounded-lg hover:bg-yellow-100 hover:shadow-sm transition border border-gray-200">
+                                <span class="font-bold text-yellow-800">${texte.auteur}</span><br>
+                                <span class="text-gray-700">${texte.titre}</span>
+                            </button>
+                        `).join('')}
+                    </div>
+                </div>
+                ${createBackButton()}`;
+        }
+        
+        // --- UTILS ---
+        function shuffleArray(array) {
+            let currentIndex = array.length, randomIndex;
+            while (currentIndex != 0) {
+                randomIndex = Math.floor(Math.random() * currentIndex);
+                currentIndex--;
+                [array[currentIndex], array[randomIndex]] = [array[randomIndex], array[currentIndex]];
+            }
+            return array;
+        }
+
+    </script>
+</body>
+</html>
